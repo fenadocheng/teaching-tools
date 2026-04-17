@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>即時文字雲</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans TC', 'PingFang TC', sans-serif;
+      background: #0f1117;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    h1 {
+      color: rgba(255,255,255,0.5);
+      font-size: 1rem;
+      letter-spacing: 0.2em;
+      margin-bottom: 40px;
+      text-transform: uppercase;
+    }
+    #cloud {
+      width: 90vw;
+      max-width: 1200px;
+      min-height: 60vh;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 12px 20px;
+      padding: 20px;
+    }
+    .word {
+      display: inline-block;
+      font-weight: bold;
+      border-radius: 8px;
+      padding: 4px 8px;
+      cursor: default;
+      transition: transform 0.3s ease, opacity 0.5s ease;
+      animation: fadeIn 0.6s ease;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .word:hover { transform: scale(1.15); }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.5) rotate(-5deg); }
+      to   { opacity: 1; transform: scale(1) rotate(0deg); }
+    }
+    #status {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      color: rgba(255,255,255,0.3);
+      font-size: 0.8rem;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #51cf66;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    #count {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      color: rgba(255,255,255,0.3);
+      font-size: 0.8rem;
+    }
+    #empty {
+      color: rgba(255,255,255,0.2);
+      font-size: 1.2rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>即時文字雲</h1>
+  <div id="cloud">
+    <p id="empty">等待大家輸入...</p>
+  </div>
+  <div id="count"></div>
+  <div id="status">
+    <div class="dot"></div>
+    即時更新中
+  </div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
+    import { getFirestore, collection, onSnapshot, query, orderBy } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrnGfABwjT4GKUM8mYlOYhVoY7CgswoaQ",
+      authDomain: "first-test-35e36.firebaseapp.com",
+      projectId: "first-test-35e36",
+      storageBucket: "first-test-35e36.firebasestorage.app",
+      messagingSenderId: "515783575884",
+      appId: "1:515783575884:web:283960a6ee0a2630e127e9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const COLORS = [
+      '#74c0fc', '#f783ac', '#a9e34b', '#ffd43b',
+      '#da77f2', '#ff8787', '#63e6be', '#ff922b',
+      '#91a7ff', '#66d9e8', '#e599f7', '#ffa94d'
+    ];
+
+    function getColor(word) {
+      let hash = 0;
+      for (const c of word) hash = (hash * 31 + c.charCodeAt(0)) & 0xffffffff;
+      return COLORS[Math.abs(hash) % COLORS.length];
+    }
+
+    function getFontSize(count, maxCount) {
+      const min = 1.2, max = 7;
+      if (maxCount <= 1) return 2.5;
+      const ratio = (count - 1) / (maxCount - 1);
+      return min + ratio * (max - min);
+    }
+
+    onSnapshot(collection(db, 'wordcloud_words'), (snapshot) => {
+      // 計算詞頻
+      const freq = {};
+      snapshot.forEach(doc => {
+        const word = (doc.data().word || '').trim();
+        if (word) freq[word] = (freq[word] || 0) + 1;
+      });
+
+      const cloud = document.getElementById('cloud');
+      const empty = document.getElementById('empty');
+      const countEl = document.getElementById('count');
+
+      const entries = Object.entries(freq);
+      const total = snapshot.size;
+
+      if (entries.length === 0) {
+        cloud.innerHTML = '<p id="empty">等待大家輸入...</p>';
+        countEl.textContent = '';
+        return;
+      }
+
+      // 排序：頻率高的在中間（先排序，再做洗牌使高頻詞靠近中心）
+      entries.sort((a, b) => b[1] - a[1]);
+      const maxCount = entries[0][1];
+
+      // 交錯排列：高頻詞往中間
+      const arranged = [];
+      let lo = 0, hi = entries.length - 1;
+      while (lo <= hi) {
+        if (lo === hi) { arranged.push(entries[lo++]); }
+        else { arranged.push(entries[hi--]); arranged.push(entries[lo++]); }
+      }
+      arranged.reverse();
+
+      cloud.innerHTML = arranged.map(([word, count]) => {
+        const size = getFontSize(count, maxCount);
+        const color = getColor(word);
+        const opacity = 0.5 + (count / maxCount) * 0.5;
+        return `<span class="word" style="font-size:${size}rem;color:${color};opacity:${opacity}" title="${count} 票">${word}</span>`;
+      }).join('');
+
+      countEl.textContent = `共 ${total} 則 / ${entries.length} 個詞`;
+    });
+  </script>
+</body>
+</html>

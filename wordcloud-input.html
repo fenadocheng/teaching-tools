@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>文字雲 — 輸入</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background: #f0f4ff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+    h1 { font-size: 1.8rem; color: #333; margin-bottom: 8px; }
+    p.hint { color: #888; font-size: 0.95rem; margin-bottom: 28px; }
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 18px;
+      font-size: 1.1rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 16px;
+    }
+    input[type="text"]:focus { border-color: #5c7cfa; }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #5c7cfa;
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: bold;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+    button:hover { background: #4c6ef5; }
+    button:active { transform: scale(0.98); }
+    button:disabled { background: #aaa; cursor: not-allowed; }
+    .feedback {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      display: none;
+    }
+    .feedback.success { background: #d3f9d8; color: #2b8a3e; display: block; }
+    .feedback.error   { background: #ffe3e3; color: #c92a2a; display: block; }
+    .submitted-words {
+      margin-top: 24px;
+      text-align: left;
+    }
+    .submitted-words h3 { font-size: 0.85rem; color: #999; margin-bottom: 8px; }
+    .word-tag {
+      display: inline-block;
+      background: #eef2ff;
+      color: #5c7cfa;
+      border-radius: 20px;
+      padding: 4px 12px;
+      font-size: 0.85rem;
+      margin: 3px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>✍️ 文字雲</h1>
+    <p class="hint">輸入一個詞，送出後即時出現在大螢幕上</p>
+    <input type="text" id="wordInput" placeholder="請輸入你的詞..." maxlength="20" autocomplete="off">
+    <button id="submitBtn" onclick="submitWord()">送出</button>
+    <div class="feedback" id="feedback"></div>
+    <div class="submitted-words" id="submittedArea" style="display:none">
+      <h3>你已送出的詞：</h3>
+      <div id="wordTags"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js';
+    import { getFirestore, collection, addDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/11.6.0/firebase-firestore.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDrnGfABwjT4GKUM8mYlOYhVoY7CgswoaQ",
+      authDomain: "first-test-35e36.firebaseapp.com",
+      projectId: "first-test-35e36",
+      storageBucket: "first-test-35e36.firebasestorage.app",
+      messagingSenderId: "515783575884",
+      appId: "1:515783575884:web:283960a6ee0a2630e127e9"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const myWords = [];
+
+    window.submitWord = async function() {
+      const input = document.getElementById('wordInput');
+      const btn = document.getElementById('submitBtn');
+      const feedback = document.getElementById('feedback');
+      const word = input.value.trim();
+
+      if (!word) {
+        showFeedback('請輸入一個詞！', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '送出中...';
+
+      try {
+        await addDoc(collection(db, 'wordcloud_words'), {
+          word: word,
+          created_at: serverTimestamp()
+        });
+        myWords.push(word);
+        updateWordTags();
+        showFeedback(`「${word}」已送出！`, 'success');
+        input.value = '';
+      } catch (e) {
+        showFeedback('送出失敗，請再試一次。', 'error');
+        console.error(e);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '送出';
+        input.focus();
+      }
+    };
+
+    function showFeedback(msg, type) {
+      const el = document.getElementById('feedback');
+      el.textContent = msg;
+      el.className = 'feedback ' + type;
+      setTimeout(() => { el.className = 'feedback'; }, 3000);
+    }
+
+    function updateWordTags() {
+      const area = document.getElementById('submittedArea');
+      const tags = document.getElementById('wordTags');
+      area.style.display = 'block';
+      tags.innerHTML = myWords.map(w => `<span class="word-tag">${w}</span>`).join('');
+    }
+
+    // 按 Enter 送出
+    document.getElementById('wordInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') window.submitWord();
+    });
+  </script>
+</body>
+</html>
