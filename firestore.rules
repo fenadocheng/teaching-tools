@@ -8,6 +8,14 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // ETF 投資教學簡報（etf-investing-101，2026-07）：文字雲＋投票
+    match /etf101_wordcloud/{document} {
+      allow read, write: if true;
+    }
+    match /etf101_poll/{document} {
+      allow read, write: if true;
+    }
+
     // 其他集合預設禁止存取
     match /{document=**} {
       allow read, write: if false;
